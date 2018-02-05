@@ -116,11 +116,19 @@ def filter_fixtures(all_fixtures, fixtures_base_dir, mark_fn=None, ignore_fn=Non
         yield fixture_data
 
 
-def hash_log_entries(log_entries):
+def hash_log_entries(log_entries, log_override=None):
     """
     Helper function for computing the RLP hash of the logs from transaction
     execution.
     """
+    if len(log_entries) > 0:
+        print("LOGS", log_entries)
+    if log_override is not None:
+        log_entries = [list(x) for x in list(log_entries)]
+        for log_entry in log_entries:
+            log_entry[0] = log_override
+        log_entries = [tuple(x) for x in log_entries]
+        log_entries = tuple(log_entries)
     from evm.rlp.logs import Log
     logs = [Log(*entry) for entry in log_entries]
     encoded_logs = rlp.encode(logs)

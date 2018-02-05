@@ -346,7 +346,7 @@ class BaseComputation(Configurable):
             self.logger.debug(
                 (
                     "COMPUTATION SUCCESS: from: %s | to: %s | value: %s | "
-                    "depth: %s | static: %s | gas-used: %s | gas-remaining: %s"
+                    "depth: %s | static: %s | gas-used: %s | gas-remaining: %s | code %s"
                 ),
                 encode_hex(self.msg.sender),
                 encode_hex(self.msg.to),
@@ -355,6 +355,7 @@ class BaseComputation(Configurable):
                 "y" if self.msg.is_static else "n",
                 self.msg.gas - self.gas_meter.gas_remaining,
                 self.gas_meter.gas_remaining,
+                self.code,
             )
 
     #

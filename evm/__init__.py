@@ -23,7 +23,6 @@ logging.addLevelName(TRACE_LEVEL_NUM, 'TRACE')
 logging.TRACE = TRACE_LEVEL_NUM
 logging.Logger.trace = trace
 
-
 #
 #  Ensure we can reach 1024 frames of recursion
 #

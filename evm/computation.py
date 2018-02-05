@@ -388,10 +388,11 @@ class BaseComputation(Configurable):
                 opcode_fn = computation.get_opcode_fn(computation.opcodes, opcode)
 
                 computation.logger.trace(
-                    "OPCODE: 0x%x (%s) | pc: %s",
+                    "OPCODE: 0x%x (%s) | pc: %s | stack %s",
                     opcode,
                     opcode_fn.mnemonic,
                     max(0, computation.code.pc - 1),
+                    [encode_hex(x) if isinstance(x, bytes) else x for x in computation.stack.values],
                 )
 
                 try:

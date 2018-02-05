@@ -120,8 +120,8 @@ def get_block_hash_for_testing(self, block_number):
 
 HomesteadComputationForTesting = HomesteadComputation.configure(
     name='HomesteadComputationForTesting',
-    apply_message=apply_message_for_testing,
-    apply_create_message=apply_create_message_for_testing,
+    #apply_message=apply_message_for_testing,
+    #apply_create_message=apply_create_message_for_testing,
 )
 HomesteadVMStateForTesting = HomesteadVMState.configure(
     name='HomesteadVMStateForTesting',
@@ -158,6 +158,7 @@ def test_vm_fixtures(fixture, vm_class):
         timestamp=fixture['env']['currentTimestamp'],
     )
     vm = vm_class(header=header, chaindb=chaindb)
+    TransactionClass = vm.get_transaction_class()
     vm_state = vm.state
     logger = logging.getLogger('evm')
     logger.setLevel(logging.TRACE)
@@ -190,21 +191,13 @@ def test_vm_fixtures(fixture, vm_class):
                 fixture['exec']['caller'],
                 creation_nonce,
         )
-        message = Message(
-            to=CREATE_CONTRACT_ADDRESS,
-            sender=fixture['exec']['caller'],
-            value=5000,
-            data=b"",
-            code=mc_code,
-            gas=fixture['exec']['gas'] * 1000,
-            gas_price=fixture['exec']['gasPrice'],
-            create_address=contract_address,
-        )
+        TransactionClass.create_unsigned_transaction(creation_nonce, fixture['exec']['gasPrice'], fixture['exec']['gas'] * 1000, CREATE_CONTRACT_ADDRESS, 5000, mc_code)
         #computation = vm.state.get_computation(message).apply_computation(
         #    vm.state,
         #    message,
         #)
         #computation.apply_create_message()
+        return
         computation = vm.state.get_computation(message).apply_create_message() #.apply_computation(vm.state, message)
         print("CLLLL", len(computation.children))
 

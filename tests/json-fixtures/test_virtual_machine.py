@@ -125,7 +125,7 @@ HomesteadComputationForTesting = HomesteadComputation.configure(
 )
 HomesteadVMStateForTesting = HomesteadVMState.configure(
     name='HomesteadVMStateForTesting',
-    get_ancestor_hash=get_block_hash_for_testing,
+    #get_ancestor_hash=get_block_hash_for_testing,
     computation_class=HomesteadComputationForTesting,
 )
 HomesteadVMForTesting = HomesteadVM.configure(
@@ -154,7 +154,7 @@ def test_vm_fixtures(fixture, vm_class):
         coinbase=fixture['env']['currentCoinbase'],
         difficulty=fixture['env']['currentDifficulty'],
         block_number=fixture['env']['currentNumber'],
-        gas_limit=fixture['env']['currentGasLimit'],
+        gas_limit=999999999999999999999999,
         timestamp=fixture['env']['currentTimestamp'],
     )
     vm = vm_class(header=header, chaindb=chaindb)
@@ -169,12 +169,20 @@ def test_vm_fixtures(fixture, vm_class):
 
         hex_code = utils.encode_hex(code)
         h = deployment.HydraDeployment(None, '/home/phil/py-evm/Hydra.sol', [])
+        mc_code = h.format_meta_contract([fixture['exec']['address']], [], None, debug=False)
+
+        creation_nonce = state_db.get_nonce(fixture['exec']['caller'])
+        contract_address = generate_contract_address(
+                fixture['exec']['caller'],
+                creation_nonce,
+        )
+
         try:
-            instrumented_code = h.instrument_head(hex_code, 'evm', '0x0')
+            instrumented_code = h.instrument_head(hex_code, 'evm', contract_address)
         except subprocess.CalledProcessError:
+            assert 5 == 3
             return
-        mc_code = h.format_meta_contract([fixture['exec']['address'], fixture['exec']['address']], [], None, debug=False)
-        #state_db.set_code(fixture['exec']['address'], instrumented_code)
+        state_db.set_code(fixture['exec']['address'], instrumented_code)
 
         open('/tmp/1', 'w').write(mc_code)
         raw_output = check_output(['solc', '--combined-json', 'abi,bin', '/tmp/1'])
@@ -185,29 +193,33 @@ def test_vm_fixtures(fixture, vm_class):
 
         # deploy MC and update state root manually
         vm.block.header.state_root = vm_state.state_root
-
-        creation_nonce = state_db.get_nonce(fixture['exec']['caller'])
-        contract_address = generate_contract_address(
-                fixture['exec']['caller'],
-                creation_nonce,
-        )
-        TransactionClass.create_unsigned_transaction(creation_nonce, fixture['exec']['gasPrice'], fixture['exec']['gas'] * 1000, CREATE_CONTRACT_ADDRESS, 5000, mc_code)
+        mc_create_tx = TransactionClass.create_unsigned_transaction(creation_nonce, 0, fixture['exec']['gas'] * 1000, CREATE_CONTRACT_ADDRESS, 0, mc_code)
+        mc_create_tx.s = 1
+        mc_create_tx.r = 1
+        mc_create_tx.v = 1
+        mc_create_tx.intrinsic_gas = 0
+        mc_create_tx.sender = fixture['exec']['caller']
+        computation, block = vm.apply_transaction(mc_create_tx)
+        computation.apply_create_message()
+        vm_state = vm.state
         #computation = vm.state.get_computation(message).apply_computation(
         #    vm.state,
         #    message,
         #)
         #computation.apply_create_message()
-        return
-        computation = vm.state.get_computation(message).apply_create_message() #.apply_computation(vm.state, message)
-        print("CLLLL", len(computation.children))
+        #return
+        #computation = vm.state.get_computation(message).apply_create_message() #.apply_computation(vm.state, message)
+        #print("CLLLL", len(computation.children))
 
+
+    with vm_state.state_db() as state_db:
         # Update state_root manually
-        vm.block.header.state_root = computation.vm_state.state_root
+        #vm.block = block
         #state_db.set_code(contract_address, computation.output)
         code = state_db.get_code(contract_address)
-        print("MC CODE OG", utils.encode_hex(mc_code))
+        #print("MC CODE OG", utils.encode_hex(mc_code))
         print("MC CODE DEPLOYED", utils.encode_hex(code))
-        print("MC PRECOMPUTE", utils.encode_hex(contract_address))
+        #print("MC PRECOMPUTE", utils.encode_hex(contract_address))
         #print("MC OUT", utils.encode_hex(computation.output))
 
     message = Message(

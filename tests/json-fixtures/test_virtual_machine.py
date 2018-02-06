@@ -122,12 +122,10 @@ def vm_class(request):
     if request.param == 'Frontier':
         pytest.skip('Only the Homestead VM rules are currently supported')
     elif request.param == 'Homestead':
-        pytest.skip('No Homestead')
         return HomesteadVMForTesting
     elif request.param == 'EIP150':
         pytest.skip('Only the Homestead VM rules are currently supported')
     elif request.param == 'SpuriousDragon':
-        return HomesteadVMForTesting
         pytest.skip('Only the Homestead VM rules are currently supported')
     else:
         assert False, "Unsupported VM: {0}".format(request.param)
@@ -177,7 +175,7 @@ def test_vm_fixtures(fixture, vm_class):
 
         # deploy MC and update state root manually
         vm.block.header.state_root = vm_state.state_root
-        mc_create_tx = TransactionClass.create_unsigned_transaction(creation_nonce, 0, fixture['exec']['gas'] * 1000, CREATE_CONTRACT_ADDRESS, 0, mc_code)
+        mc_create_tx = TransactionClass.create_unsigned_transaction(creation_nonce, 0, fixture['exec']['gas'] * 100000, CREATE_CONTRACT_ADDRESS, 0, mc_code)
         mc_create_tx.s = 1
         mc_create_tx.r = 1
         mc_create_tx.v = 1
@@ -215,7 +213,7 @@ def test_vm_fixtures(fixture, vm_class):
         value=fixture['exec']['value'],
         data=fixture['exec']['data'],
         code=code,
-        gas=fixture['exec']['gas'] * 10,
+        gas=fixture['exec']['gas'] * 1000000,
         gas_price=fixture['exec']['gasPrice'],
     )
     computation = vm.state.get_computation(message).apply_computation(

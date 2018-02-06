@@ -267,7 +267,7 @@ contract HydraContract is ASMUtils {
         _mstore(mem + 4 + 32, bytes32(msg.value));
         _calldatacopy(mem + 4 + 32 + 32, 0, msg.data.length);
 
-        bool callSuccess = _call(msg.gas, this, 0, mem, msg.data.length + 4 + 32 + 32);
+        bool callSuccess = _call(100000, this, 0, mem, msg.data.length + 4 + 32 + 32);
 
         uint256 retSize = _returndatasize();
 
@@ -370,7 +370,7 @@ contract HydraContract is ASMUtils {
                 nextCall = 0;                                                   // 5000 GAS
             }
 
-            callSuccess = _call(msg.gas, heads[i], 0, mem, msg.data.length - 4);
+            callSuccess = _call(100000, heads[i], 0, mem, msg.data.length - 4);
 
             // if the CALL didn't succeed (probably OOG),
             // throw so the default function will throw

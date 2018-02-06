@@ -33,16 +33,16 @@ from evm.rlp.headers import (
 )
 from evm.vm.forks import (
     HomesteadVM,
-    SpuriousDragonVM,
+    ByzantiumVM,
 )
 from evm.vm.forks.homestead.computation import (
     HomesteadComputation,
 )
-from evm.vm.forks.spurious_dragon.computation import (
-    SpuriousDragonComputation,
+from evm.vm.forks.byzantium.computation import (
+    ByzantiumComputation,
 )
 from evm.vm.forks.homestead.vm_state import HomesteadVMState
-from evm.vm.forks.spurious_dragon.vm_state import SpuriousDragonVMState
+from evm.vm.forks.byzantium.vm_state import ByzantiumVMState
 from evm.vm import (
     Message,
 )
@@ -120,19 +120,19 @@ HomesteadVMForTesting = HomesteadVM.configure(
     name='HomesteadVMForTesting',
     _state_class=HomesteadVMStateForTesting,
 )
-SpuriousDragonComputationForTesting = SpuriousDragonComputation.configure(
-    name='SpuriousDragonComputationForTesting',
-    apply_message=apply_message_for_testing,
-    apply_create_message=apply_create_message_for_testing,
+ByzantiumComputationForTesting = ByzantiumComputation.configure(
+    name='ByzantiumComputationForTesting',
+    #apply_message=apply_message_for_testing,
+    #apply_create_message=apply_create_message_for_testing,
 )
-SpuriousDragonVMStateForTesting = SpuriousDragonVMState.configure(
-    name='SpuriousDragonVMStateForTesting',
-    get_ancestor_hash=get_block_hash_for_testing,
-    computation_class=SpuriousDragonComputationForTesting,
+ByzantiumVMStateForTesting = ByzantiumVMState.configure(
+    name='ByzantiumVMStateForTesting',
+    #get_ancestor_hash=get_block_hash_for_testing,
+    computation_class=ByzantiumComputationForTesting,
 )
-SpuriousDragonVMForTesting = SpuriousDragonVM.configure(
-    name='SpuriousDragonVMForTesting',
-    _state_class=SpuriousDragonVMStateForTesting,
+ByzantiumVMForTesting = ByzantiumVM.configure(
+    name='ByzantiumVMForTesting',
+    _state_class=ByzantiumVMStateForTesting,
 )
 
 
@@ -143,7 +143,7 @@ def vm_class(request):
     if request.param == 'Frontier':
         pytest.skip('Only the Homestead VM rules are currently supported')
     elif request.param == 'Homestead':
-        return SpuriousDragonVMForTesting
+        return ByzantiumVMForTesting
     elif request.param == 'EIP150':
         pytest.skip('Only the Homestead VM rules are currently supported')
     elif request.param == 'SpuriousDragon':
@@ -169,20 +169,24 @@ def test_vm_fixtures(fixture, vm_class):
 
     with vm_state.state_db() as state_db:
         setup_state_db(fixture['pre'], state_db)
+    with vm_state.state_db() as state_db:
         code = state_db.get_code(fixture['exec']['address'])
+        if len(code) == 0:
+            return
 
         hex_code = utils.encode_hex(code)
         h = deployment.HydraDeployment(None, '/home/phil/py-evm/Hydra.sol', [])
         mc_code = h.format_meta_contract([fixture['exec']['address']], [], None, debug=False)
 
         creation_nonce = state_db.get_nonce(fixture['exec']['caller'])
-        contract_address = generate_contract_address(
+
+        metacontract_address = generate_contract_address(
                 fixture['exec']['caller'],
                 creation_nonce,
         )
 
         try:
-            instrumented_code = h.instrument_head(hex_code, 'evm', contract_address)
+            instrumented_code = h.instrument_head(hex_code, 'evm', metacontract_address)
         except subprocess.CalledProcessError:
             return
         state_db.set_code(fixture['exec']['address'], instrumented_code)
@@ -217,19 +221,20 @@ def test_vm_fixtures(fixture, vm_class):
 
     with vm_state.state_db() as state_db:
         # Update state_root manually
-        #vm.block = block
-        #state_db.set_code(contract_address, computation.output)
-        code = state_db.get_code(contract_address)
+        code = state_db.get_code(metacontract_address)
         for i in range(0, 50):
-            print("STORN", i, state_db.get_storage(contract_address, i))
+            print("STORN", i, state_db.get_storage(metacontract_address, i))
         #print("MC CODE OG", utils.encode_hex(mc_code))
-        print("MC CODE DEPLOYED", utils.encode_hex(code))
-        #print("MC PRECOMPUTE", utils.encode_hex(contract_address))
+        logger.debug('MC CODE DEPLOYED %s', utils.encode_hex(code))
+        logger.debug('HEAD CODE DEPLOYED %s', utils.encode_hex(state_db.get_code(fixture['exec']['address'])))
+        #print("MC CODE DEPLOYED", utils.encode_hex(code))
+        #print("HEAD CODE DEPLOYED", utils.encode_hex(state_db.get_code(fixture['exec']['address'])))
+        #print("MC PRECOMPUTE", utils.encode_hex(metacontract_address))
         #print("MC OUT", utils.encode_hex(computation.output))
 
     message = Message(
         origin=fixture['exec']['origin'],
-        to=contract_address,
+        to=metacontract_address,
         sender=fixture['exec']['caller'],
         value=fixture['exec']['value'],
         data=fixture['exec']['data'],
@@ -270,7 +275,7 @@ def test_vm_fixtures(fixture, vm_class):
         #assert gas_delta == 0, "Gas difference: {0}".format(gas_delta)
 
         call_creates = fixture.get('callcreates', [])
-        assert len(computation.children) == len(call_creates)
+        assert len(computation.children) == len(call_creates) + 1
 
         call_creates = fixture.get('callcreates', [])
         for child_computation, created_call in zip(computation.children, call_creates):

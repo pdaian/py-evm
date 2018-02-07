@@ -222,14 +222,6 @@ def test_vm_fixtures(fixture, vm_class):
         computation, block = vm.apply_transaction(mc_create_tx)
         computation.apply_create_message()
         vm_state = vm.state
-        #computation = vm.state.get_computation(message).apply_computation(
-        #    vm.state,
-        #    message,
-        #)
-        #computation.apply_create_message()
-        #return
-        #computation = vm.state.get_computation(message).apply_create_message() #.apply_computation(vm.state, message)
-        #print("CLLLL", len(computation.children))
         logger.debug('HEAD CODE DEPLOYED1 %s', encode_hex(state_db.get_code(fixture['exec']['address'])))
 
 
@@ -238,13 +230,8 @@ def test_vm_fixtures(fixture, vm_class):
         code = state_db.get_code(metacontract_address)
         for i in range(0, 50):
             print("STORN", i, state_db.get_storage(metacontract_address, i))
-        #print("MC CODE OG", encode_hex(mc_code))
         logger.debug('MC CODE DEPLOYED %s', encode_hex(code))
         logger.debug('HEAD CODE DEPLOYED %s', encode_hex(state_db.get_code(fixture['exec']['address'])))
-        #print("MC CODE DEPLOYED", encode_hex(code))
-        #print("HEAD CODE DEPLOYED", encode_hex(state_db.get_code(fixture['exec']['address'])))
-        #print("MC PRECOMPUTE", encode_hex(metacontract_address))
-        #print("MC OUT", encode_hex(computation.output))
 
     message = Message(
         origin=fixture['exec']['origin'],

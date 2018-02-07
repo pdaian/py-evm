@@ -82,7 +82,7 @@ def get_contract_translator(source_file):
 
 class HydraDeployment(metaclass=ABCMeta):
 
-    INSTRUMENTER_PATH = "/home/phil/Hydra/hydra/instrumenter/"
+    INSTRUMENTER_PATH = "/home/phil/Hydra_copy_2/hydra/instrumenter/"
 
     def __init__(self, creator_addr, path_to_metacontract, paths_to_heads, instrument=True, verbose=False):
         self.creator_addr = creator_addr

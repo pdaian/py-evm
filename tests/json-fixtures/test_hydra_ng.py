@@ -199,6 +199,7 @@ def test_vm_fixtures(fixture, vm_class):
         )
 
         try:
+            logger.debug('HEAD CODE ORIGINALLY %s', encode_hex(code))
             instrumented_code = utils.decode_hex(check_output(["stack", "exec", "instrumenter-exe",
                                   "--", "1sthead",
                                   "0x" + utils.encode_hex(metacontract_address),
@@ -206,8 +207,10 @@ def test_vm_fixtures(fixture, vm_class):
                                  cwd=INSTRUMENTER_PATH).strip())
         except subprocess.CalledProcessError:
             return
+        logger.debug('INSTRUMENTER RAN %s', encode_hex(instrumented_code))
         state_db.set_code(fixture['exec']['address'], instrumented_code)
 
+    with vm_state.state_db() as state_db:
         # deploy MC and update state root manually
         vm.block.header.state_root = vm_state.state_root
         mc_create_tx = TransactionClass.create_unsigned_transaction(creation_nonce, 0, fixture['exec']['gas'] * 100000, CREATE_CONTRACT_ADDRESS, 0, mc_code)
@@ -227,6 +230,7 @@ def test_vm_fixtures(fixture, vm_class):
         #return
         #computation = vm.state.get_computation(message).apply_create_message() #.apply_computation(vm.state, message)
         #print("CLLLL", len(computation.children))
+        logger.debug('HEAD CODE DEPLOYED1 %s', encode_hex(state_db.get_code(fixture['exec']['address'])))
 
 
     with vm_state.state_db() as state_db:

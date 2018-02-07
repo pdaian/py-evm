@@ -191,6 +191,7 @@ def test_vm_fixtures(fixture, vm_class):
             return
         state_db.set_code(fixture['exec']['address'], instrumented_code)
 
+    with vm_state.state_db() as state_db:
         open('/tmp/1', 'w').write(mc_code)
         raw_output = check_output(['solc', '--combined-json', 'abi,bin', '/tmp/1'])
         output = json.loads(raw_output)

@@ -83,6 +83,12 @@ def vm_fixture_mark_fn(fixture_path, fixture_name):
         return pytest.mark.skip(
             'Skipped due to Metropolis VM quirks'
         )
+    # run only failing tests
+    elif not fixture_path in ['vmArithmeticTest/mulUnderFlow.json', 'vmBlockInfoTest/blockhashUnderFlow.json', 'vmEnvironmentalInfo/calldatacopyUnderFlow.json', 'vmIOandFlowOperations/JDfromStorageDynamicJump0_jumpdest0.json', 'vmIOandFlowOperations/JDfromStorageDynamicJump0_jumpdest2.json', 'vmIOandFlowOperations/JDfromStorageDynamicJumpiAfterStop.json', 'vmIOandFlowOperations/jumpTo1InstructionafterJump.json', 'vmIOandFlowOperations/jumpi_at_the_end.json', 'vmIOandFlowOperations/loop_stacklimit_1020.json', 'vmIOandFlowOperations/pop1.json', 'vmIOandFlowOperations/sstore_load_2.json', 'vmIOandFlowOperations/sstore_underflow.json', 'vmPushDupSwapTest/dup2error.json', 'vmPushDupSwapTest/swap2error.json', 'vmRandomTest/201503102320PYTHON.json', 'vmRandomTest/201503112218PYTHON.json', 'vmSystemOperations/CallRecursiveBomb0.json', 'vmSystemOperations/CallRecursiveBomb1.json', 'vmSystemOperations/CallRecursiveBomb2.json', 'vmSystemOperations/CallRecursiveBomb3.json', 'vmSystemOperations/CallToNameRegistrator0.json', 'vmSystemOperations/CallToPrecompiledContract.json', 'vmSystemOperations/CallToReturn1.json', 'vmSystemOperations/PostToNameRegistrator0.json', 'vmSystemOperations/PostToReturn1.json', 'vmSystemOperations/callstatelessToNameRegistrator0.json', 'vmSystemOperations/callstatelessToReturn1.json', 'vmTests/boolean.json']:
+        return pytest.mark.skip(
+            'only run failures'
+        )
+
 
 
 def pytest_generate_tests(metafunc):

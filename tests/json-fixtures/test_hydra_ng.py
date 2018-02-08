@@ -145,9 +145,6 @@ ByzantiumVMForTesting = ByzantiumVM.configure(
     _state_class=ByzantiumVMStateForTesting,
 )
 
-
-
-
 @pytest.fixture(params=['Frontier', 'Homestead', 'EIP150', 'SpuriousDragon'])
 def vm_class(request):
     if request.param == 'Frontier':
@@ -177,7 +174,7 @@ def create_contract(TransactionClass, code, gas, sender, vm, state_db):
         creation_nonce
     )
     state_db.increment_nonce(sender)
-    return contract_address
+    return contract_address, vm.state
 
 def test_vm_fixtures(fixture, vm_class):
     chaindb = BaseChainDB(get_db_backend())
@@ -194,12 +191,17 @@ def test_vm_fixtures(fixture, vm_class):
     logger = logging.getLogger('evm')
     logger.setLevel(logging.TRACE)
 
-    vm.block.header.state_root = vm_state.state_root
     with vm_state.state_db() as state_db:
         setup_state_db(fixture['pre'], state_db)
-    vm_state = vm.state
-
     vm.block.header.state_root = vm_state.state_root
+
+    with vm_state.state_db() as state_db:
+        head_address = generate_contract_address(
+            fixture['exec']['caller'],
+            state_db.get_nonce(fixture['exec']['caller']) + 1
+        )
+    vm.block.header.state_root = vm_state.state_root
+
     with vm_state.state_db() as state_db:
         code = state_db.get_code(fixture['exec']['address'])
         #if len(code) == 0:
@@ -208,60 +210,45 @@ def test_vm_fixtures(fixture, vm_class):
         hex_code = encode_hex(code)
         h = deployment.HydraDeployment(None, '/home/phil/py-evm/Hydra.sol', [])
         mc_code = check_output(
-            ["stack", "exec", "instrumenter-exe", "--", "metacontract"] + [encode_hex(a) for a in [fixture['exec']['address']]],
+            ["stack", "exec", "instrumenter-exe", "--", "metacontract"] + [encode_hex(a) for a in [head_address]],
             cwd=INSTRUMENTER_PATH).strip()
         mc_code = utils.decode_hex(mc_code)
-    vm_state = vm.state
-
     vm.block.header.state_root = vm_state.state_root
+
     with vm_state.state_db() as state_db:
         # deploy MC and update state root manually
-        metacontract_address = create_contract(TransactionClass, mc_code, fixture['exec']['gas'] * 100000, fixture['exec']['caller'], vm, state_db)
-    vm_state = vm.state
-
+        metacontract_address, vm_state = create_contract(TransactionClass, mc_code, fixture['exec']['gas'] * 100000, fixture['exec']['caller'], vm, state_db)
     vm.block.header.state_root = vm_state.state_root
+
     with vm_state.state_db() as state_db:
-        try:
-            logger.debug('HEAD CODE ORIGINALLY %s', encode_hex(code))
-            instrumented_code = utils.decode_hex(check_output(["stack", "exec", "instrumenter-exe",
+        logger.debug('HEAD CODE ORIGINALLY %s', encode_hex(code))
+        instrumented_code = utils.decode_hex(check_output(["stack", "exec", "instrumenter-exe",
                                   "--", "1sthead",
                                   "0x" + utils.encode_hex(metacontract_address),
                                   utils.encode_hex(code)],
                                  cwd=INSTRUMENTER_PATH).strip())
-        except subprocess.CalledProcessError:
-            #return
-            assert 5 == 6
         logger.debug('INSTRUMENTER RAN %s', encode_hex(instrumented_code))
-    vm_state = vm.state
-
     vm.block.header.state_root = vm_state.state_root
+
     with vm_state.state_db() as state_db:
         # deploy head and update state root manually
-        head_address = create_contract(TransactionClass, instrumented_code, fixture['exec']['gas'] * 100000, fixture['exec']['caller'], vm, state_db)
-        state_db.increment_nonce(fixture['exec']['caller'])
-    vm_state = vm.state
+        new_head_address, vm_state = create_contract(TransactionClass, instrumented_code, fixture['exec']['gas'] * 100000, fixture['exec']['caller'], vm, state_db)
+        assert head_address == new_head_address
+    vm.block.header.state_root = vm_state.state_root
 
     vm.block.header.state_root = vm_state.state_root
     with vm_state.state_db() as state_db:
-        state_db.set_code(fixture['exec']['address'], state_db.get_code(head_address))
-    vm_state = vm.state
-
-    for slot in range(50):
-        vm.block.header.state_root = vm_state.state_root
-        with vm_state.state_db() as state_db:
-            state_db.set_storage(fixture['exec']['address'], slot, state_db.get_storage(head_address, slot))
-        vm_state = vm.state
+        logger.debug('4 HEAD CODE %s', encode_hex(state_db.get_code(head_address)))
+    vm.block.header.state_root = vm_state.state_root
 
     with vm_state.state_db() as state_db:
+        logger.debug('5 HEAD CODE %s', encode_hex(state_db.get_code(head_address)))
         # Update state_root manually
         code = state_db.get_code(metacontract_address)
-        for i in range(0, 50):
-            print("STORN", i, state_db.get_storage(metacontract_address, i))
         logger.debug('MC CODE DEPLOYED %s', encode_hex(code))
-        logger.debug('HEAD CODE DEPLOYED %s', encode_hex(state_db.get_code(fixture['exec']['address'])))
-        logger.debug('HEAD CODE SOURCE %s', encode_hex(state_db.get_code(head_address)))
+        logger.debug('HEAD CODE %s', encode_hex(state_db.get_code(head_address)))
         logger.debug('OG HEAD CODE %s', encode_hex(state_db.get_code(fixture['exec']['address'])))
-        vm_state = vm.state
+    vm.block.header.state_root = vm_state.state_root
 
     message = Message(
         origin=fixture['exec']['origin'],
@@ -273,8 +260,8 @@ def test_vm_fixtures(fixture, vm_class):
         gas=fixture['exec']['gas'] * 1000000,
         gas_price=fixture['exec']['gasPrice'],
     )
-    computation = vm.state.get_computation(message).apply_computation(
-        vm.state,
+    computation = vm_state.get_computation(message).apply_computation(
+        vm_state,
         message,
     )
     # Update state_root manually

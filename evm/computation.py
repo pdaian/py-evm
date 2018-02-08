@@ -379,6 +379,8 @@ class BaseComputation(Configurable):
         Perform the computation that would be triggered by the VM message.
         """
         with cls(vm_state, message) as computation:
+            computation.logger.setLevel(logging.TRACE)
+
             # Early exit on pre-compiles
             if message.code_address in computation.precompiles:
                 computation.precompiles[message.code_address](computation)

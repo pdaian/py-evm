@@ -64,15 +64,16 @@ from evm.utils.hexadecimal import (
 )
 
 
-INSTRUMENTER_PATH = "/home/phil/Hydra/hydra/instrumenter/"
+INSTRUMENTER_PATH = "/home/debian/Hydra/hydra/instrumenter/"
 
 ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
-
 BASE_FIXTURE_PATH = os.path.join(ROOT_PROJECT_DIR, 'fixtures', 'VMTests')
 
-
 def vm_fixture_mark_fn(fixture_path, fixture_name):
+    head, tail = os.path.split(fixture_path)
+    fixture_path = os.path.basename(head) + "/"  + tail
+    '''
     if fixture_path.startswith('vmPerformance'):
         return pytest.mark.skip('Performance tests are really slow')
     elif fixture_path == 'vmSystemOperations/createNameRegistrator.json':
@@ -83,12 +84,17 @@ def vm_fixture_mark_fn(fixture_path, fixture_name):
         return pytest.mark.skip(
             'Skipped due to Metropolis VM quirks'
         )
+    elif fixture_path in ['vmIOandFlowOperations/loop_stacklimit_1020.json', 'vmSystemOperations/CallRecursiveBomb1.json', 'vmSystemOperations/CallRecursiveBomb2.json', 'vmSystemOperations/CallRecursiveBomb3.json'] :
+        return pytest.mark.skip(
+            'Out Of Scope'
+        )
+    '''
     # run only failing tests
-    elif not fixture_path in ['vmArithmeticTest/mulUnderFlow.json', 'vmBlockInfoTest/blockhashUnderFlow.json', 'vmEnvironmentalInfo/calldatacopyUnderFlow.json', 'vmIOandFlowOperations/JDfromStorageDynamicJump0_jumpdest0.json', 'vmIOandFlowOperations/JDfromStorageDynamicJump0_jumpdest2.json', 'vmIOandFlowOperations/JDfromStorageDynamicJumpiAfterStop.json', 'vmIOandFlowOperations/jumpTo1InstructionafterJump.json', 'vmIOandFlowOperations/jumpi_at_the_end.json', 'vmIOandFlowOperations/loop_stacklimit_1020.json', 'vmIOandFlowOperations/pop1.json', 'vmIOandFlowOperations/sstore_load_2.json', 'vmIOandFlowOperations/sstore_underflow.json', 'vmPushDupSwapTest/dup2error.json', 'vmPushDupSwapTest/swap2error.json', 'vmRandomTest/201503102320PYTHON.json', 'vmRandomTest/201503112218PYTHON.json', 'vmSystemOperations/CallRecursiveBomb0.json', 'vmSystemOperations/CallRecursiveBomb1.json', 'vmSystemOperations/CallRecursiveBomb2.json', 'vmSystemOperations/CallRecursiveBomb3.json', 'vmSystemOperations/CallToNameRegistrator0.json', 'vmSystemOperations/CallToPrecompiledContract.json', 'vmSystemOperations/CallToReturn1.json', 'vmSystemOperations/PostToNameRegistrator0.json', 'vmSystemOperations/PostToReturn1.json', 'vmSystemOperations/callstatelessToNameRegistrator0.json', 'vmSystemOperations/callstatelessToReturn1.json', 'vmTests/boolean.json']:
+    if fixture_path not in ['vmIOandFlowOperations/JDfromStorageDynamicJump0_jumpdest0.json', 'vmIOandFlowOperations/JDfromStorageDynamicJump0_jumpdest2.json', 'vmIOandFlowOperations/JDfromStorageDynamicJumpiAfterStop.json', 'vmIOandFlowOperations/jumpTo1InstructionafterJump.json', 'vmIOandFlowOperations/jumpi_at_the_end.json', 'vmIOandFlowOperations/sstore_load_2.json', 'vmTests/boolean.json']:
+
         return pytest.mark.skip(
             'only run failures'
         )
-
 
 
 def pytest_generate_tests(metafunc):
@@ -214,7 +220,7 @@ def test_vm_fixtures(fixture, vm_class):
         #    return
 
         hex_code = encode_hex(code)
-        h = deployment.HydraDeployment(None, '/home/phil/py-evm/Hydra.sol', [])
+        h = deployment.HydraDeployment(None, '/home/debian/py-evm-flo/Hydra.sol', [])
         mc_code = check_output(
             ["stack", "exec", "instrumenter-exe", "--", "metacontract"] + [encode_hex(a) for a in [head_address]],
             cwd=INSTRUMENTER_PATH).strip()
@@ -302,10 +308,7 @@ def test_vm_fixtures(fixture, vm_class):
         #assert gas_delta == 0, "Gas difference: {0}".format(gas_delta)
 
         call_creates = fixture.get('callcreates', [])
-        assert len(computation.children) == len(call_creates) + 1
-
-        call_creates = fixture.get('callcreates', [])
-        for child_computation, created_call in zip(computation.children[0].children, call_creates):
+        for child_computation, created_call in zip(computation.children[0].children[1:], call_creates):
             to_address = created_call['destination']
             data = created_call['data']
             gas_limit = created_call['gasLimit']
@@ -324,6 +327,6 @@ def test_vm_fixtures(fixture, vm_class):
         assert isinstance(computation._error, VMError)
         post_state = fixture['pre']
 
-    print("YAY" * 50000)
+    print("YAY" * 10)
     #with vm.state.state_db(read_only=True) as state_db:
     #    verify_state_db(post_state, state_db)

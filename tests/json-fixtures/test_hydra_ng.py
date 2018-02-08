@@ -251,6 +251,12 @@ def test_vm_fixtures(fixture, vm_class):
         assert head_address == new_head_address
     vm.block.header.state_root = vm_state.state_root
 
+    for i in range(0, 50):
+        with vm_state.state_db() as state_db:
+            # deploy head and update state root manually
+            state_db.set_storage(head_address, i, state_db.get_storage(fixture['exec']['address'], i))
+        vm.block.header.state_root = vm_state.state_root
+
     vm.block.header.state_root = vm_state.state_root
     with vm_state.state_db() as state_db:
         logger.debug('4 HEAD CODE %s', encode_hex(state_db.get_code(head_address)))

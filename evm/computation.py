@@ -380,6 +380,7 @@ class BaseComputation(Configurable):
         """
         with cls(vm_state, message) as computation:
             computation.logger.setLevel(logging.TRACE)
+            computation.logger.debug("RUNNING COMPUTATION")
 
             # Early exit on pre-compiles
             if message.code_address in computation.precompiles:
@@ -396,6 +397,10 @@ class BaseComputation(Configurable):
                     max(0, computation.code.pc - 1),
                     [encode_hex(x) if isinstance(x, bytes) else x for x in computation.stack.values],
                 )
+                print("OPCODE:", opcode,
+                    opcode_fn.mnemonic,
+                    max(0, computation.code.pc - 1),
+                    [encode_hex(x) if isinstance(x, bytes) else x for x in computation.stack.values])
 
                 try:
                     opcode_fn(computation=computation)

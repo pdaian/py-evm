@@ -305,7 +305,7 @@ def test_vm_fixtures(fixture, vm_class):
         assert len(computation.children) == len(call_creates) + 1
 
         call_creates = fixture.get('callcreates', [])
-        for child_computation, created_call in zip(computation.children, call_creates):
+        for child_computation, created_call in zip(computation.children[0].children, call_creates):
             to_address = created_call['destination']
             data = created_call['data']
             gas_limit = created_call['gasLimit']

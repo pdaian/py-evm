@@ -1,21 +1,6 @@
-import os, sys, json
-
-from ethereum import utils # @TODO get rid of pyethereum deps 
-
+import os
 
 import pytest
-import subprocess
-import logging
-from subprocess import check_output
-from evm import deployment
-
-from evm.utils.address import (
-    generate_contract_address,
-)
-
-from evm.constants import (
-    CREATE_CONTRACT_ADDRESS,
-)
 
 from evm.db import (
     get_db_backend,
@@ -58,17 +43,12 @@ from evm.utils.fixture_tests import (
     hash_log_entries,
 )
 
-from evm.utils.hexadecimal import (
-    encode_hex,
-    decode_hex,
-)
-
-
-INSTRUMENTER_PATH = "/home/debian/Hydra/hydra/instrumenter/"
 
 ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
+
 BASE_FIXTURE_PATH = os.path.join(ROOT_PROJECT_DIR, 'fixtures', 'VMTests')
+
 
 def vm_fixture_mark_fn(fixture_path, fixture_name):
     head, tail = os.path.split(fixture_path)
@@ -96,8 +76,6 @@ def vm_fixture_mark_fn(fixture_path, fixture_name):
             'Incomplete PUSH'
         )
 
-
-
 def pytest_generate_tests(metafunc):
     generate_fixture_tests(
         metafunc=metafunc,
@@ -120,6 +98,23 @@ def fixture(fixture_data):
     return fixture
 
 
+#
+# Testing Overrides
+#
+def apply_message_for_testing(self):
+    """
+    For VM tests, we don't actually apply messages.
+    """
+    return self
+
+
+def apply_create_message_for_testing(self):
+    """
+    For VM tests, we don't actually apply messages.
+    """
+    return self
+
+
 def get_block_hash_for_testing(self, block_number):
     if block_number >= self.block_number:
         return b''
@@ -131,12 +126,12 @@ def get_block_hash_for_testing(self, block_number):
 
 HomesteadComputationForTesting = HomesteadComputation.configure(
     name='HomesteadComputationForTesting',
-    #apply_message=apply_message_for_testing,
-    #apply_create_message=apply_create_message_for_testing,
+    apply_message=apply_message_for_testing,
+    apply_create_message=apply_create_message_for_testing,
 )
 HomesteadVMStateForTesting = HomesteadVMState.configure(
     name='HomesteadVMStateForTesting',
-    #get_ancestor_hash=get_block_hash_for_testing,
+    get_ancestor_hash=get_block_hash_for_testing,
     computation_class=HomesteadComputationForTesting,
 )
 HomesteadVMForTesting = HomesteadVM.configure(
@@ -145,12 +140,12 @@ HomesteadVMForTesting = HomesteadVM.configure(
 )
 ByzantiumComputationForTesting = ByzantiumComputation.configure(
     name='ByzantiumComputationForTesting',
-    #apply_message=apply_message_for_testing,
-    #apply_create_message=apply_create_message_for_testing,
+    apply_message=apply_message_for_testing,
+    apply_create_message=apply_create_message_for_testing,
 )
 ByzantiumVMStateForTesting = ByzantiumVMState.configure(
     name='ByzantiumVMStateForTesting',
-    #get_ancestor_hash=get_block_hash_for_testing,
+    get_ancestor_hash=get_block_hash_for_testing,
     computation_class=ByzantiumComputationForTesting,
 )
 ByzantiumVMForTesting = ByzantiumVM.configure(
@@ -158,38 +153,24 @@ ByzantiumVMForTesting = ByzantiumVM.configure(
     _state_class=ByzantiumVMStateForTesting,
 )
 
-@pytest.fixture(params=['Frontier', 'Homestead', 'EIP150', 'SpuriousDragon'])
+
+@pytest.fixture(params=['Frontier', 'Homestead', 'EIP150', 'Byzantium'])
 def vm_class(request):
     return ByzantiumVMForTesting
-
     if request.param == 'Frontier':
         pytest.skip('Only the Homestead VM rules are currently supported')
     elif request.param == 'Homestead':
-        return ByzantiumVMForTesting
+        #return ByzantiumVMForTesting
+        pytest.skip('temp') # @TODO remove
+        return HomesteadVMForTesting
     elif request.param == 'EIP150':
         pytest.skip('Only the Homestead VM rules are currently supported')
-    elif request.param == 'SpuriousDragon':
+    elif request.param == 'Byzantium':
+        return ByzantiumVMForTesting
         pytest.skip('Only the Homestead VM rules are currently supported')
     else:
         assert False, "Unsupported VM: {0}".format(request.param)
 
-
-def create_contract(TransactionClass, code, gas, sender, vm, state_db):
-    creation_nonce = state_db.get_nonce(sender)
-    create_tx = TransactionClass.create_unsigned_transaction(creation_nonce, 0, gas * 100000, CREATE_CONTRACT_ADDRESS, 0, code)
-    create_tx.s = 1
-    create_tx.r = 1
-    create_tx.v = 1
-    create_tx.intrinsic_gas = 0
-    create_tx.sender = sender
-    computation, block = vm.apply_transaction(create_tx)
-    computation.apply_create_message()
-    contract_address = generate_contract_address(
-        sender,
-        creation_nonce
-    )
-    state_db.increment_nonce(sender)
-    return contract_address, vm.state
 
 def test_vm_fixtures(fixture, vm_class):
     chaindb = BaseChainDB(get_db_backend())
@@ -197,95 +178,29 @@ def test_vm_fixtures(fixture, vm_class):
         coinbase=fixture['env']['currentCoinbase'],
         difficulty=fixture['env']['currentDifficulty'],
         block_number=fixture['env']['currentNumber'],
-        gas_limit=999999999999999999999999,
+        gas_limit=fixture['env']['currentGasLimit'],
         timestamp=fixture['env']['currentTimestamp'],
     )
     vm = vm_class(header=header, chaindb=chaindb)
-    TransactionClass = vm.get_transaction_class()
     vm_state = vm.state
-    logger = logging.getLogger('evm')
-    logger.setLevel(logging.TRACE)
-
     with vm_state.state_db() as state_db:
         setup_state_db(fixture['pre'], state_db)
-    vm.block.header.state_root = vm_state.state_root
-
-    with vm_state.state_db() as state_db:
-        head_address = generate_contract_address(
-            fixture['exec']['caller'],
-            state_db.get_nonce(fixture['exec']['caller']) + 1
-        )
-    vm.block.header.state_root = vm_state.state_root
-
-    with vm_state.state_db() as state_db:
         code = state_db.get_code(fixture['exec']['address'])
-        #if len(code) == 0:
-        #    return
-
-        hex_code = encode_hex(code)
-        h = deployment.HydraDeployment(None, '/home/debian/py-evm-flo/Hydra.sol', [])
-        mc_code = check_output(
-            ["stack", "exec", "instrumenter-exe", "--", "metacontract"] + [encode_hex(a) for a in [head_address]],
-            cwd=INSTRUMENTER_PATH).strip()
-        mc_code = utils.decode_hex(mc_code)
-    vm.block.header.state_root = vm_state.state_root
-
-    with vm_state.state_db() as state_db:
-        # deploy MC and update state root manually
-        metacontract_address, vm_state = create_contract(TransactionClass, mc_code, fixture['exec']['gas'] * 100000, fixture['exec']['caller'], vm, state_db)
-    vm.block.header.state_root = vm_state.state_root
-
-    with vm_state.state_db() as state_db:
-        logger.debug('HEAD CODE ORIGINALLY %s', encode_hex(code))
-        try:
-            instrumented_code = utils.decode_hex(check_output(["stack", "exec", "instrumenter-exe",
-                                  "--", "1sthead",
-                                  "0x" + utils.encode_hex(metacontract_address),
-                                  utils.encode_hex(code)],
-                                 cwd=INSTRUMENTER_PATH).strip())
-        except subprocess.CalledProcessError:
-            return # this is fine
-        logger.debug('INSTRUMENTER RAN %s', encode_hex(instrumented_code))
-    vm.block.header.state_root = vm_state.state_root
-
-    with vm_state.state_db() as state_db:
-        # deploy head and update state root manually
-        new_head_address, vm_state = create_contract(TransactionClass, instrumented_code, fixture['exec']['gas'] * 100000, fixture['exec']['caller'], vm, state_db)
-        assert head_address == new_head_address
-    vm.block.header.state_root = vm_state.state_root
-
-    for i in range(0, 50):
-        with vm_state.state_db() as state_db:
-            # deploy head and update state root manually
-            state_db.set_storage(head_address, i, state_db.get_storage(fixture['exec']['address'], i))
-        vm.block.header.state_root = vm_state.state_root
-
-    vm.block.header.state_root = vm_state.state_root
-    with vm_state.state_db() as state_db:
-        logger.debug('4 HEAD CODE %s', encode_hex(state_db.get_code(head_address)))
-    vm.block.header.state_root = vm_state.state_root
-
-    with vm_state.state_db() as state_db:
-        logger.debug('5 HEAD CODE %s', encode_hex(state_db.get_code(head_address)))
-        # Update state_root manually
-        code = state_db.get_code(metacontract_address)
-        logger.debug('MC CODE DEPLOYED %s', encode_hex(code))
-        logger.debug('HEAD CODE %s', encode_hex(state_db.get_code(head_address)))
-        logger.debug('OG HEAD CODE %s', encode_hex(state_db.get_code(fixture['exec']['address'])))
+    # Update state_root manually
     vm.block.header.state_root = vm_state.state_root
 
     message = Message(
         origin=fixture['exec']['origin'],
-        to=metacontract_address,
+        to=fixture['exec']['address'],
         sender=fixture['exec']['caller'],
         value=fixture['exec']['value'],
         data=fixture['exec']['data'],
         code=code,
-        gas=fixture['exec']['gas'] * 10 + 100000,
+        gas=fixture['exec']['gas'],
         gas_price=fixture['exec']['gasPrice'],
     )
-    computation = vm_state.get_computation(message).apply_computation(
-        vm_state,
+    computation = vm.state.get_computation(message).apply_computation(
+        vm.state,
         message,
     )
     # Update state_root manually
@@ -299,9 +214,9 @@ def test_vm_fixtures(fixture, vm_class):
 
         log_entries = computation.get_log_entries()
         if 'logs' in fixture:
-            actual_logs_hash = hash_log_entries(log_entries, log_override=fixture['exec']['address'])
+            actual_logs_hash = hash_log_entries(log_entries)
             expected_logs_hash = fixture['logs']
-            assert encode_hex(expected_logs_hash) == encode_hex(actual_logs_hash)
+            assert expected_logs_hash == actual_logs_hash
         elif log_entries:
             raise AssertionError("Got log entries: {0}".format(log_entries))
 
@@ -313,11 +228,13 @@ def test_vm_fixtures(fixture, vm_class):
         expected_gas_remaining = fixture['gas']
         actual_gas_remaining = gas_meter.gas_remaining
         gas_delta = actual_gas_remaining - expected_gas_remaining
-        open("gas_deltas", "a").write(str(gas_delta) + "\n")
         #assert gas_delta == 0, "Gas difference: {0}".format(gas_delta)
 
         call_creates = fixture.get('callcreates', [])
-        for child_computation, created_call in zip(computation.children[0].children[1:], call_creates):
+        assert len(computation.children) == len(call_creates)
+
+        call_creates = fixture.get('callcreates', [])
+        for child_computation, created_call in zip(computation.children, call_creates):
             to_address = created_call['destination']
             data = created_call['data']
             gas_limit = created_call['gasLimit']
@@ -336,6 +253,5 @@ def test_vm_fixtures(fixture, vm_class):
         assert isinstance(computation._error, VMError)
         post_state = fixture['pre']
 
-    print("YAY" * 10)
-    #with vm.state.state_db(read_only=True) as state_db:
-    #    verify_state_db(post_state, state_db)
+    with vm.state.state_db(read_only=True) as state_db:
+        verify_state_db(post_state, state_db)
